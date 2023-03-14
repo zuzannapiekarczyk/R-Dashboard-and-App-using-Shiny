@@ -1,0 +1,580 @@
+---
+title: "Przygotowanie danych"
+author: "Zuzanna Piekarczyk"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r}
+install.packages("AER")
+install.packages("tidyverse")
+install.packages("dplyr")
+install.packages("ggplot2")
+install.packages("scales")
+install.packages("treemapify")
+install.packages("lessR")
+install.packages("fontawesome")
+library("AER")
+library("tidyverse")
+library("dplyr")
+library("ggplot2")
+library("scales")
+library("treemapify")
+library("lessR")
+library("fontawesome")
+```
+
+```{r}
+#wczytanie danych z pliku surowedane.csv
+dane<-read.csv("C:/Users/super/OneDrive/Desktop/shiny dashboard/surowedane.csv", header=TRUE, sep=",",dec=".")
+```
+
+```{r}
+#podglad danych w formie tabeli
+view(dane)
+```
+
+```{r}
+#sprawdzenie typu danych
+class(dane)
+```
+
+
+```{r}
+#wyswietlenie liczby wierszy
+nrow(dane)
+```
+```{r}
+#wyswietlenie liczby kolumn
+ncol(dane)
+```
+
+
+```{r}
+#wyswietlenie nazwy kolumn
+names(dane)
+```
+
+```{r}
+#sprawdzenie typow danych
+str(dane)
+```
+
+```{r}
+#usuniecie zmiennej Row_ID
+dane <- dane[-c(1)]
+```
+
+```{r}
+#statystyki opisowe dla kazdej zmiennej
+summary(dane$Sales)
+```
+
+```{r}
+#zmiana nazw kolumn na j. polski
+names(dane)<-c("ID_zamowienia","Data_zamowienia","Data_dostawy","Sposob_dostawy","ID_klienta","Nazwa_klienta","Segment","Kraj","Miasto","Stan","Kod_pocztowy","Region","ID_produktu","Kategoria","Podkategoria","Nazwa_produktu","Sprzedaz") 
+```
+
+```{r}
+#konwertowanie daty zamówienia i daty dostawy na typ date w formacie dd/mm/rrrr
+dane$Data_zamowienia <- as.Date(dane$Data_zamowienia, "%m/%d/%Y")
+dane$Data_dostawy <- as.Date(dane$Data_dostawy, "%m/%d/%Y")
+```
+
+
+```{r}
+#sortowanie danych po dacie zamówienia
+dane <- dane[order(dane$Data_zamowienia),]
+```
+
+```{r}
+#sprawdzenie w ktorych kolumnach sa wartosci brakujace
+which(colSums(is.na(dane))>0)
+```
+
+
+```{r}
+#usuniecie wierszy, gdzie nie ma dat
+dane <- dane %>% drop_na(Data_zamowienia)
+dane <- dane %>% drop_na(Data_dostawy)
+```
+
+
+```{r}
+#sprawdzenie w jakich miastach nie ma kodu pocztowego
+dane[is.na(dane$Kod_pocztowy), ]  
+```
+
+```{r}
+#kodu pocztowego brakuje dla rekordow z miastem Burlington, dodanie kodu 5401
+dane <- dane %>% mutate(Kod_pocztowy = ifelse(is.na(Kod_pocztowy), 5401, Kod_pocztowy))
+```
+
+```{r}
+#wartosci brakujace zostaly usuniete/dodane
+which(colSums(is.na(dane))>0)
+```
+
+
+```{r}
+dane$Sprzedaz <- as.numeric(dane$Sprzedaz)
+dane$Nazwa_klienta <- as.factor(dane$Nazwa_klienta)
+dane$Stan <- as.factor(dane$Stan)
+dane$Miasto <- as.factor(dane$Miasto)
+dane$Kategoria <- as.factor(dane$Kategoria)
+dane$Podkategoria <- as.factor(dane$Podkategoria)
+dane$Nazwa_produktu <- as.factor(dane$Nazwa_produktu)
+dane$Segment <- as.factor(dane$Segment)
+dane$Region <- as.factor(dane$Region)
+dane$Sposob_dostawy <- as.factor(dane$Sposob_dostawy)
+dane$Stan <- as.factor(dane$Stan)
+str(dane)
+```
+
+```{r}
+attach(dane)
+```
+
+
+
+filter() – wybierz wskazane wiersze ze zbioru danych 
+select() – wybierz tylko wskazane kolumny ze zbioru danych
+arrange() – posortuj wiersze wzgledem wskazanych kolumn, arrange(desc())
+mutate() – dodaj nowa kolumne z danymi lub zmien istniejaca 
+group_by()/ungroup()-pogrupuj dane wzgledem wskazanych czynników/usun informacje o pogrupowaniu, 
+summarise() – wyznacz okreslone agregaty w kazdej grupie
+
+WYKRESY
+
+#most valuable customers: top 10
+```{r}
+wykres1 <- dane %>%
+  group_by(Nazwa_klienta) %>%
+  summarise(Sprzedaż = sum(Sprzedaz)) %>%
+  select(Nazwa_klienta, Sprzedaż) %>%
+  arrange(desc(Sprzedaż))
+wykres1 <- head(wykres1,10)
+wykres1 <- wykres1 %>%
+    ggplot(aes(x = reorder(Nazwa_klienta, -Sprzedaż), 
+             y = Sprzedaż, label = round(Sprzedaż))) +
+    geom_col(aes(fill = Sprzedaż), width = 0.5, position = "dodge") +
+    labs(title = "Klienci z najwyższą wartością sprzedaży",
+         x = "Nazwa klienta", 
+         y = "Wartość sprzedaży") +
+    theme_grey() +
+    scale_color_brewer(palette="Blues") +
+    theme(plot.title = element_text(size = 16, face = "bold", colour = "#204878", hjust = 0.5, vjust = 2.5),
+            axis.text.x = element_text(angle = -30, vjust = 1, hjust = 0),
+            axis.title.x = element_text(vjust = -2, face = "bold", colour = "#204878"),
+            axis.title.y = element_text(vjust = 2, face = "bold", colour = "#204878"),
+            panel.grid.major = element_line(colour = "grey70", size = 0.2),
+            panel.grid.minor = element_blank(),
+            plot.margin = margin(25, 25, 25, 25),
+            legend.title = element_text(size = 10, face = "bold", colour = "#204878", vjust = 3),
+            legend.margin = margin(15,15,15,15)) +
+    scale_y_continuous(labels = unit_format(unit = "tys.", scale = 1e-3))
+wykres1
+```
+#states with highest revenue: top 10
+```{r}
+wykres2a <- dane %>%
+  group_by(Stan) %>%
+  summarise(Sprzedaż = sum(Sprzedaz)) %>%
+  select(Stan, Sprzedaż) %>%
+  arrange(desc(Sprzedaż))
+wykres2a <- head(wykres2a,23)
+wykres2a <- wykres2a %>%
+    ggplot(aes(x = reorder(Stan, Sprzedaż), 
+             y = Sprzedaż, label = round(Sprzedaż))) +
+    geom_col(aes(fill = Sprzedaż), width = 0.5, position = "dodge") +
+    scale_color_brewer(palette="Blues") +
+    coord_flip() +
+    labs(title = "Stany z wartością sprzedaży powyżej średniej",
+         x = "Stan", 
+         y = "Wartość sprzedaży") +
+    theme_grey() +
+    theme(plot.title = element_text(size = 16, face = "bold", colour = "#204878", hjust = 0.5, vjust = 2.5),
+            axis.text.x = element_text(angle = -30, vjust = 1, hjust = 0),
+            axis.title.x = element_text(vjust = -2, face = "bold", colour = "#204878"),
+            axis.title.y = element_text(vjust = 2, face = "bold", colour = "#204878"),
+            panel.grid.major = element_line(colour = "grey70", size = 0.2),
+            panel.grid.minor = element_blank(),
+            plot.margin = margin(25, 25, 25, 25),
+            legend.title = element_text(size = 10, face = "bold", colour = "#204878", vjust = 3),
+            legend.margin = margin(15,15,15,15)) +
+    scale_y_continuous(labels = unit_format(unit = "tys.", scale = 1e-3))
+wykres2a
+```
+
+
+```{r}
+wykres2b <- dane %>%
+  group_by(Stan) %>%
+  summarise(Sprzedaż = sum(Sprzedaz)) %>%
+  select(Stan, Sprzedaż) %>%
+  arrange(Sprzedaż)
+wykres2b <- head(wykres2b,23)
+wykres2b <- wykres2b %>%
+    ggplot(aes(x = reorder(Stan, -Sprzedaż), 
+             y = Sprzedaż, label = round(Sprzedaż))) +
+    geom_col(aes(fill = Sprzedaż), width = 0.5, position = "dodge") +
+    scale_color_brewer(palette="Blues") +
+    coord_flip() +
+    labs(title = "Stany z wartością sprzedaży poniżej średniej",
+         x = "Stan", 
+         y = "Wartość sprzedaży") +
+    theme_grey() +
+    theme(plot.title = element_text(size = 16, face = "bold", colour = "#204878", hjust = 0.5, vjust = 2.5),
+            axis.text.x = element_text(angle = -30, vjust = 1, hjust = 0),
+            axis.title.x = element_text(vjust = -2, face = "bold", colour = "#204878"),
+            axis.title.y = element_text(vjust = 2, face = "bold", colour = "#204878"),
+            panel.grid.major = element_line(colour = "grey70", size = 0.2),
+            panel.grid.minor = element_blank(),
+            plot.margin = margin(25, 25, 25, 25),
+            legend.title = element_text(size = 10, face = "bold", colour = "#204878", vjust = 3),
+            legend.margin = margin(15,15,15,15)) +
+    scale_y_continuous(labels = unit_format(unit = "tys.", scale = 1e-3))
+wykres2b
+```
+
+
+```{r}
+wykres3a <- dane %>%
+  group_by(Miasto) %>%
+  summarise(Sprzedaż = sum(Sprzedaz)) %>%
+  select(Miasto, Sprzedaż) %>%
+  arrange(desc(Sprzedaż))
+wykres3a <- head(wykres3a,10)
+wykres3a <- wykres3a %>%
+    ggplot(aes(x = reorder(Miasto, Sprzedaż), 
+             y = Sprzedaż, label = round(Sprzedaż))) +
+    geom_col(aes(fill = Sprzedaż), width = 0.5, position = "dodge") +
+    scale_color_brewer(palette="Blues") +
+    coord_flip() +
+    labs(title = "Miasta z najwyższą wartością sprzedaży",
+         x = "Miasto", 
+         y = "Wartość sprzedaży") +
+    theme_grey() +
+    theme(plot.title = element_text(size = 16, face = "bold", colour = "#204878", hjust = 0.5, vjust = 2.5),
+            axis.text.x = element_text(angle = -30, vjust = 1, hjust = 0),
+            axis.title.x = element_text(vjust = -2, face = "bold", colour = "#204878"),
+            axis.title.y = element_text(vjust = 2, face = "bold", colour = "#204878"),
+            panel.grid.major = element_line(colour = "grey70", size = 0.2),
+            panel.grid.minor = element_blank(),
+            plot.margin = margin(25, 25, 25, 25),
+            legend.title = element_text(size = 10, face = "bold", colour = "#204878", vjust = 3),
+            legend.margin = margin(15,15,15,15)) +
+    scale_y_continuous(labels = unit_format(unit = "tys.", scale = 1e-3))
+wykres3a
+```
+
+```{r}
+wykres3b <- dane %>%
+  group_by(Miasto) %>%
+  summarise(Sprzedaż = sum(Sprzedaz)) %>%
+  select(Miasto, Sprzedaż) %>%
+  arrange(Sprzedaż)
+wykres3b <- head(wykres3b,10)
+wykres3b <- wykres3b %>%
+    ggplot(aes(x = reorder(Miasto, -Sprzedaż), 
+             y = Sprzedaż, label = round(Sprzedaż))) +
+    geom_col(aes(fill = Sprzedaż), width = 0.5, position = "dodge") +
+    scale_color_brewer(palette="Blues") +
+    coord_flip() +
+    labs(title = "Miasta z najniższą wartością sprzedaży",
+         x = "Miasto", 
+         y = "Wartość sprzedaży") +
+    theme_grey() +
+    theme(plot.title = element_text(size = 16, face = "bold", colour = "#204878", hjust = 0.5, vjust = 2.5),
+            axis.text.x = element_text(angle = -30, vjust = 1, hjust = 0),
+            axis.title.x = element_text(vjust = -2, face = "bold", colour = "#204878"),
+            axis.title.y = element_text(vjust = 2, face = "bold", colour = "#204878"),
+            panel.grid.major = element_line(colour = "grey70", size = 0.2),
+            panel.grid.minor = element_blank(),
+            plot.margin = margin(25, 25, 25, 25),
+            legend.title = element_text(size = 10, face = "bold", colour = "#204878", vjust = 3),
+            legend.margin = margin(15,15,15,15)) +
+    scale_y_continuous(labels = unit_format(unit = "tys.", scale = 1e-1))
+wykres3b
+```
+
+
+```{r}
+str(dane)
+```
+
+
+```{r}
+#dodać filtr daty
+#3 wykresy: jeden dla każdej kategorii
+#revenue by each category & subcategory
+
+dane$Data_zamowienia <- as.factor(dane$Data_zamowienia)
+dane$Data_dostawy <- as.factor(dane$Data_dostawy)
+```
+
+
+```{r}
+#furniture
+wykres4a <- dane %>%
+  filter(Kategoria=="Furniture") %>%
+  group_by(Podkategoria, Data_zamowienia) %>%
+  arrange(Data_zamowienia) %>%
+  select(Podkategoria, Sprzedaz, Data_zamowienia)
+wykres4a$Data_zamowienia <- as.Date(wykres4a$Data_zamowienia)
+#office supplies
+wykres4b <- dane %>%
+  filter(Kategoria=="Office Supplies") %>%
+  group_by(Podkategoria, Data_zamowienia) %>%
+  arrange(Data_zamowienia) %>%
+  select(Podkategoria, Sprzedaz, Data_zamowienia)
+wykres4b$Data_zamowienia <- as.Date(wykres4b$Data_zamowienia)
+#technology
+wykres4c <- dane %>%
+  filter(Kategoria=="Technology") %>%
+  group_by(Podkategoria, Data_zamowienia) %>%
+  arrange(Data_zamowienia) %>%
+  select(Podkategoria, Sprzedaz, Data_zamowienia)
+wykres4c$Data_zamowienia <- as.Date(wykres4c$Data_zamowienia)
+```
+
+```{r}
+#wykresy
+wykres4a <- wykres4a %>% ggplot(dane, mapping = aes(x = Data_zamowienia, y = Sprzedaz)) + 
+  geom_area(mapping = aes(color = Podkategoria, fill = Podkategoria), 
+            alpha = 0.5, position = position_dodge(0.8)) +
+  theme_grey() +
+  scale_fill_brewer(palette="Blues") +
+  scale_color_brewer(palette="Blues") +
+  labs(title = "Sprzedaż w kategorii Furniture z podziałem na podkategorie",
+         x = "Data zamówienia", 
+         y = "Wartość sprzedaży") + 
+   theme(plot.title = element_text(size = 12, face = "bold", colour = "#204878", hjust = 0.5, vjust = 2.5),
+            axis.title.x = element_text(vjust = -2, face = "bold", colour = "#204878"),
+            axis.title.y = element_text(vjust = 2, face = "bold", colour = "#204878"),
+            panel.grid.major = element_line(colour = "grey70", size = 0.2),
+            panel.grid.minor = element_blank(),
+            plot.margin = margin(25, 25, 25, 25),
+            legend.title = element_text(size = 10, face = "bold", colour = "#204878", vjust = 3),
+            legend.margin = margin(15,15,15,15)) +
+    scale_y_continuous(labels = unit_format(unit = "tys.", scale = 1e-1))
+wykres4a
+wykres4b <- wykres4b %>% ggplot(dane, mapping = aes(x = Data_zamowienia, y = Sprzedaz)) + 
+  geom_area(mapping = aes(color = Podkategoria, fill = Podkategoria), 
+            alpha = 0.5, position = position_dodge(0.8)) +
+  theme_grey() +
+  scale_fill_brewer(palette="Blues") +
+  scale_color_brewer(palette="Blues") +
+  labs(title = "Sprzedaż w kategorii Office Supplies z podziałem na podkategorie",
+         x = "Data zamówienia", 
+         y = "Wartość sprzedaży") + 
+   theme(plot.title = element_text(size = 12, face = "bold", colour = "#204878", hjust = 0.5, vjust = 2.5),
+            axis.title.x = element_text(vjust = -2, face = "bold", colour = "#204878"),
+            axis.title.y = element_text(vjust = 2, face = "bold", colour = "#204878"),
+            panel.grid.major = element_line(colour = "grey70", size = 0.2),
+            panel.grid.minor = element_blank(),
+            plot.margin = margin(25, 25, 25, 25),
+            legend.title = element_text(size = 10, face = "bold", colour = "#204878", vjust = 3),
+            legend.margin = margin(15,15,15,15)) +
+    scale_y_continuous(labels = unit_format(unit = "tys.", scale = 1e-1))
+wykres4b
+wykres4c <- wykres4c %>% ggplot(dane, mapping = aes(x = Data_zamowienia, y = Sprzedaz)) + 
+  geom_area(mapping = aes(color = Podkategoria, fill = Podkategoria), 
+            alpha = 0.5, position = position_dodge(0.8)) +
+  theme_grey() +
+  scale_fill_brewer(palette="Blues") +
+  scale_color_brewer(palette="Blues") +
+  labs(title = "Sprzedaż w kategorii Technology z podziałem na podkategorie",
+         x = "Data zamówienia", 
+         y = "Wartość sprzedaży") + 
+   theme(plot.title = element_text(size = 12, face = "bold", colour = "#204878", hjust = 0.5, vjust = 2.5),
+            axis.title.x = element_text(vjust = -2, face = "bold", colour = "#204878"),
+            axis.title.y = element_text(vjust = 2, face = "bold", colour = "#204878"),
+            panel.grid.major = element_line(colour = "grey70", size = 0.2),
+            panel.grid.minor = element_blank(),
+            plot.margin = margin(25, 25, 25, 25),
+            legend.title = element_text(size = 10, face = "bold", colour = "#204878", vjust = 3),
+            legend.margin = margin(15,15,15,15)) +
+            
+    scale_y_continuous(labels = unit_format(unit = "tys.", scale = 1e-1))
+wykres4c
+```
+#which segment has the highest revenue
+```{r}
+wykres5 <- dane %>%
+  group_by(Segment) %>%
+  summarise(total = sum(Sprzedaz),
+            liczba = n(),
+            procent = liczba/2676*100) %>%
+  select(Segment, total, liczba, procent) %>%
+  arrange(desc(total))
+wykres5$procent <- round(wykres5$procent, digits = 0)
+wykres5 <- wykres5 %>%
+    mutate(procent = procent/100,
+      procent = scales::percent(procent))
+wykres5 <- wykres5 %>% ggplot(dane, mapping = aes(x = "", y = procent, fill = Segment)) +
+  geom_col() +
+  coord_polar(theta = "y") + 
+  geom_text(aes(label = procent),
+            position = position_stack(vjust = 0.5)) +
+  scale_fill_brewer(palette="Blues") +
+  theme_grey() + 
+  labs(title = "Udział poszczególnych segmentów w sprzedaży ogółem",
+        x = "", 
+        y = "") + 
+  theme(plot.title = element_text(size = 12, face = "bold", colour = "#204878", hjust = 0.5, vjust = 2.5),
+            legend.title = element_text(size = 10, face = "bold", colour = "#204878", vjust = 3),
+            panel.border = element_blank(),
+           # panel.grid=element_blank(),
+            axis.ticks = element_blank(),
+            panel.grid.major = element_line(colour = "grey70", size = 0.2),
+            panel.grid.minor = element_blank(),
+            plot.margin = margin(25, 25, 25, 25),
+            legend.margin = margin(15,15,15,15))
+wykres5
+```
+
+#which region has the highest sales
+```{r}
+wykres6 <- dane %>%
+  group_by(Region) %>%
+  summarise(total = sum(Sprzedaz),
+            liczba = n(),
+            procent = liczba/2676*100) %>%
+  select(Region, total, liczba, procent) %>%
+  arrange(desc(total))
+wykres6$procent <- round(wykres6$procent, digits = 0)
+wykres6 <- wykres6 %>%
+    mutate(procent = procent/100,
+      procent = scales::percent(procent))
+wykres6 <- wykres6 %>% ggplot(dane, mapping = aes(x = "", y = procent, fill = Region)) +
+  geom_col() +
+  coord_polar(theta = "y") + 
+  geom_text(aes(label = procent),
+            position = position_stack(vjust = 0.5)) +
+  scale_fill_brewer(palette="Blues") +
+  theme_grey() + 
+  labs(title = "Udział poszczególnych regionów w sprzedaży ogółem",
+        x = "", 
+        y = "") + 
+  theme(plot.title = element_text(size = 12, face = "bold", colour = "#204878", hjust = 0.5, vjust = 2.5),
+            legend.title = element_text(size = 10, face = "bold", colour = "#204878", vjust = 3),
+            panel.border = element_blank(),
+            axis.ticks = element_blank(),
+        
+            panel.grid.major = element_line(colour = "grey70", size = 0.2),
+            panel.grid.minor = element_blank(),
+            plot.margin = margin(25, 25, 25, 25),
+            legend.margin = margin(15,15,15,15))
+wykres6
+```
+
+#which shipping mode has the highest sales
+```{r}
+wykres7 <- dane %>%
+  group_by(Sposob_dostawy) %>%
+  summarise(Sprzedaż = sum(Sprzedaz)) %>%
+  select(Sposob_dostawy, Sprzedaż) %>%
+  arrange(desc(Sprzedaż))
+wykres7 <- wykres7 %>%
+    ggplot(mapping = aes(x = reorder(Sposob_dostawy, -Sprzedaż), 
+             y = Sprzedaż, label = round(Sprzedaż))) +
+    geom_bar(stat="identity") +
+    geom_col(mapping = aes(fill = Sprzedaż), position = "dodge") +
+    labs(title = "Wartość sprzedaży z podziałem na sposób dostawy",
+         x = "Sposób dostawy", 
+         y = "Wartość sprzedaży") +
+    theme_grey() +
+    theme(plot.title = element_text(size = 16, face = "bold", colour = "#204878", hjust = 0.5, vjust = 2.5),
+            axis.text.x = element_text(angle = -30, vjust = 1, hjust = 0),
+            axis.title.x = element_text(vjust = -2, face = "bold", colour = "#204878"),
+            axis.title.y = element_text(vjust = 2, face = "bold", colour = "#204878"),
+            panel.grid.major = element_line(colour = "grey70", size = 0.2),
+            panel.grid.minor = element_blank(),
+            plot.margin = margin(25, 25, 25, 25),
+            legend.title = element_text(size = 10, face = "bold", colour = "#204878", vjust = 3),
+            legend.margin = margin(15,15,15,15)) + 
+      scale_y_continuous(labels = unit_format(unit = "tys.", scale = 1e-1))
+wykres7
+```
+
+#sprzedaz na przestrzeni lat/miesiecy/dni
+```{r}
+wykres8 <- dane %>%
+  group_by(Data_zamowienia) %>%
+  summarise(total = sum(Sprzedaz)) %>%
+  arrange(Data_zamowienia) %>%
+  select(Data_zamowienia, total)
+wykres8$Data_zamowienia <- as.Date(wykres8$Data_zamowienia)
+wykres8 <- wykres8 %>% ggplot(dane, mapping = aes(x = Data_zamowienia, y = total)) + 
+  geom_line(color = "#56b1f7", size = 1) +
+  theme_grey() +
+  labs(title = "Całkowita wartość sprzedaży w czasie",
+         x = "Data zamówienia", 
+         y = "Wartość sprzedaży") + 
+   theme(plot.title = element_text(size = 16, face = "bold", colour = "#204878", hjust = 0.5, vjust = 2.5),
+            axis.title.x = element_text(vjust = -2, face = "bold", colour = "#204878"),
+            axis.title.y = element_text(vjust = 2, face = "bold", colour = "#204878"),
+            panel.grid.major = element_line(colour = "grey70", size = 0.2),
+            panel.grid.minor = element_blank(),
+            plot.margin = margin(25, 25, 25, 25),
+            legend.title = element_text(size = 10, face = "bold", colour = "#204878", vjust = 3),
+            legend.margin = margin(15,15,15,15)) +
+    scale_y_continuous(labels = unit_format(unit = "tys.", scale = 1e-1)) + 
+    stat_smooth(color = "#FC4E07", fill = "#FC4E07", method = "loess")
+wykres8
+```
+
+
+KAFELKI
+
+#liczba sprzedanych produktow
+```{r}
+prod <- dane %>% 
+  summarise(liczba = n())
+prod
+```
+
+#calkowity przychod
+```{r}
+przych <- dane %>% 
+  summarise(suma = sum(Sprzedaz)) %>%
+  select(suma)
+przych
+```
+
+#liczba klientow
+```{r}
+klienci <- unique(dane$Nazwa_klienta)
+sumkli <- length(klienci)
+sumkli
+```
+
+
+#liczba klientow
+
+
+```{r}
+saveRDS(dane, file = "dane.rds")
+saveRDS(wykres1, file = "wykres1.rds")
+saveRDS(wykres2a, file = "wykres2a.rds")
+saveRDS(wykres2b, file = "wykres2b.rds")
+saveRDS(wykres3a, file = "wykres3a.rds")
+saveRDS(wykres3b, file = "wykres3b.rds")
+saveRDS(wykres4a, file = "wykres4a.rds")
+saveRDS(wykres4b, file = "wykres4b.rds")
+saveRDS(wykres4c, file = "wykres4c.rds")
+saveRDS(wykres5, file = "wykres5.rds")
+saveRDS(wykres6, file = "wykres6.rds")
+saveRDS(wykres7, file = "wykres7.rds")
+saveRDS(wykres8, file = "wykres8.rds")
+saveRDS(prod, file = "prod.rds")
+saveRDS(przych, file = "przych.rds")
+saveRDS(sumkli, file = "sumkli.rds")
+```
+
+
+```{r}
+#zapisanie danych do pliku csv
+write.csv(dane,"C:/Users/super/OneDrive/Desktop/shiny dashboard/gotowedane.csv")
+```
